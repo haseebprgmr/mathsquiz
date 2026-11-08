@@ -14,7 +14,10 @@ Deploy: push these files to GitHub, then on Render create a Web Service from the
 (Build: `npm install`, Start: `npm start`).
 
 Rooms
+- The Multiplayer page has Create Room and Quick Match on top, and an "Open games" list below that updates live.
 - Create Room opens a settings screen (time, questions, max players, difficulty) and a Public/Private choice.
   Nothing exists on the server until CREATE ROOM is pressed.
-- Public rooms are listed live in the Public Lobby; private rooms are joined only with their 4-character code.
-- If the host leaves a waiting room, the room is closed and removed from the lobby (Quick Match rooms hand over to the next player).
+- Public rooms have a JOIN button. Private rooms appear as locked entries (the code is never sent to other players)
+  and ask for the 4-character code when you press JOIN. To hide private rooms from the list entirely, set
+  `LIST_PRIVATE_ROOMS = false` near the top of the lobby section in `server.js`.
+- If the host leaves a waiting room, the room closes and disappears from the list (Quick Match rooms hand over to the next player).

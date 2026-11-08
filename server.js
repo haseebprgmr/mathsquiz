@@ -50,15 +50,18 @@ const castRoom = r => r.players.forEach(p => send(p.ws, {
   players: r.players.map(({ id, name, av }) => ({ id, name, av }))
 }));
 
-/* ---- public lobby (real-time) ---- */
+/* ---- open games list (real-time) ---- */
+// Private rooms are shown as locked entries so players can see they exist, but their code is NEVER sent:
+// joining one still requires typing the code. Set to false to hide private rooms from the list completely.
+const LIST_PRIVATE_ROOMS = true;
 function listRooms() {
   const out = [];
   for (const r of rooms.values()) {
-    if (r.vis !== "public" || r.quick || (r.phase !== "wait" && r.phase !== "play")) continue; // private & quick rooms never listed
+    if (r.quick || (r.vis !== "public" && !LIST_PRIVATE_ROOMS) || (r.phase !== "wait" && r.phase !== "play")) continue; // quick-match rooms are never listed
     const host = r.players.find(p => p.id === r.host) || r.players[0];
     const count = r.players.filter(p => p.ws).length;
     out.push({
-      code: r.code, host: host ? host.name : "?", players: count, max: r.set.max, lvl: r.set.lvl, q: r.set.q, time: r.set.time,
+      rid: r.id, code: r.vis === "public" ? r.code : null, vis: r.vis, host: host ? host.name : "?", av: host ? host.av : "🎮", players: count, max: r.set.max, lvl: r.set.lvl, q: r.set.q, time: r.set.time,
       status: r.phase === "wait" ? "waiting" : r.round === 0 ? "starting" : "playing", full: count >= r.set.max, createdAt: r.createdAt,
     });
   }
