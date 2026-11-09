@@ -2,6 +2,13 @@ services:
   - type: web
     name: math-quest
     runtime: node
-    plan: free
+    plan: free        # free plan: progress is lost on restart. Use a paid plan + disk below to keep it.
     buildCommand: npm install
     startCommand: npm start
+    # envVars:
+    #   - key: DATA_DIR
+    #     value: /var/data
+    # disk:
+    #   name: mq-data
+    #   mountPath: /var/data
+    #   sizeGB: 1
