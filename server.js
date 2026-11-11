@@ -51,6 +51,17 @@ const cleanName = n => String(n || "Player").replace(/[\u0000-\u001f<>]/g, "").t
 const hash = s => crypto.createHash("sha256").update(String(s)).digest("hex");
 const safeEq = (a, b) => { const x = Buffer.from(a), y = Buffer.from(b); return x.length === y.length && crypto.timingSafeEqual(x, y); };
 const today = () => P.ds(Date.now());
+const avatarIdOf = value => {
+  if (typeof value !== "string") return null;
+  const v = value.trim();
+  if (!v) return null;
+  const match = P.AVATAR_COLLECTION.find(a => a.id === v || a.id === v.toLowerCase() || a.name.toLowerCase() === v.toLowerCase() || a.icon === v);
+  return match ? match.id : null;
+};
+const avatarIconOf = value => {
+  const id = avatarIdOf(value) || "noob";
+  return (P.AVATAR_COLLECTION.find(a => a.id === id) || P.AVATAR_COLLECTION[0]).icon;
+};
 const acctOf = p => (p.acct ? store.get(p.acct) : null);
 const lvlOf = p => { const a = acctOf(p); return a ? P.levelInfo(a.progression.totalXP).index : 1; };
 const castRoom = r => r.players.forEach(p => send(p.ws, {
@@ -67,6 +78,10 @@ function authenticate(ws, m) {
   }
   if (!acct) { secret = rand32(24); acct = P.newPlayer("P" + rand32(9), hash(secret), cleanName(m.name)); store.add(acct); }
   else if (m.name) acct.name = cleanName(m.name);
+  const selected = avatarIdOf(m.avatarId) || avatarIdOf(m.av) || (acct.avatar && acct.avatar.selected) || "noob";
+  P.syncAvatarUnlocks(acct);
+  acct.avatar.selected = selected;
+  if (!acct.avatar.unlocked.includes(selected)) acct.avatar.unlocked.push(selected);
   acct.lastSeen = Date.now();
   ws.acct = acct;
   store.save();
@@ -119,8 +134,10 @@ function makeRoom(settings, quick, vis) {
 }
 function addPlayer(r, ws, m) {
   const id = crypto.randomUUID(); // server-issued identity for this seat
+  const avatarId = avatarIdOf(m.avatarId) || avatarIdOf(m.av) || (ws.acct && ws.acct.avatar && ws.acct.avatar.selected) || "noob";
+  const avatar = P.AVATAR_COLLECTION.find(a => a.id === avatarId) || P.AVATAR_COLLECTION[0];
   ws.room = r; ws.pid = id; ws.sub = false;
-  r.players.push({ id, token: crypto.randomUUID(), name: ws.acct ? ws.acct.name : cleanName(m.name), av: String(m.av || "🎮").slice(0, 4), ws, acct: ws.acct ? ws.acct.id : null, score: 0 });
+  r.players.push({ id, token: crypto.randomUUID(), name: ws.acct ? ws.acct.name : cleanName(m.name), av: avatar.icon, ws, acct: ws.acct ? ws.acct.id : null, score: 0 });
   if (!r.host) r.host = id;
 }
 function joinRoom(ws, m, code, publicOnly) {
@@ -324,6 +341,16 @@ wss.on("connection", ws => {
       case "auth": authenticate(ws, m); break;
       case "profile": pushProfile(ws); break;
       case "setName": if (ws.acct) { ws.acct.name = cleanName(m.name); store.save(); pushProfile(ws); } break;
+      case "setAvatar": {
+        if (!ws.acct) break;
+        const selected = avatarIdOf(m.avatarId) || avatarIdOf(m.av);
+        if (!selected) break;
+        const state = P.syncAvatarUnlocks(ws.acct);
+        if (!state.unlocked.includes(selected)) break;
+        ws.acct.avatar.selected = selected;
+        store.save(); pushProfile(ws);
+        break;
+      }
       case "equip": {
         if (!ws.acct || !Array.isArray(m.ids)) break;
         const un = ws.acct.achievements.unlocked;

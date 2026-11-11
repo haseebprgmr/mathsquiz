@@ -2,10 +2,20 @@
 const cfg = require("./progression.config");
 const SCHEMA = 1;
 const DIFF = ["easy", "medium", "hard"];
+const AVATAR_COLLECTION = [
+  { id: "noob", name: "NOOB", title: "The Mathematics Rookie", description: "A curious new mathematician with a notebook and a bright future ahead.", requiredLevel: 1, icon: "🧑‍🎓", palette: ["#9dd8ff", "#7c70ff", "#f2d5ff"], accent: "#7fe7ff" },
+  { id: "nerd", name: "NERD", title: "The Mathematical Enthusiast", description: "A glasses-wearing scholar with formula notes, geometric diagrams and confidence.", requiredLevel: 2, icon: "🧠", palette: ["#8de9ff", "#4fa8ff", "#8d6bff"], accent: "#84deff" },
+  { id: "beginner", name: "BEGINNER", title: "The Apprentice Mathematician", description: "A polished academic learner with digital tools and precise focus.", requiredLevel: 3, icon: "📐", palette: ["#9ef0d2", "#6be3c2", "#98a7ff"], accent: "#93f0ff" },
+  { id: "expert", name: "EXPERT", title: "The Mathematical Scholar", description: "A seasoned researcher with elegant accessories and calm authority.", requiredLevel: 4, icon: "🧮", palette: ["#8cd9ff", "#7b8eff", "#d5f1ff"], accent: "#8ef2ff" },
+  { id: "pro", name: "PRO", title: "The Mathematical Strategist", description: "A premium professional with holographic formulas and a commanding presence.", requiredLevel: 5, icon: "🏅", palette: ["#7d7dff", "#3e6dff", "#f0d88f"], accent: "#f5d77a" },
+  { id: "genius", name: "GENIUS", title: "The Master of Mathematics", description: "A prestigious intellectual surrounded by glowing equations and elegant geometry.", requiredLevel: 6, icon: "🧠", palette: ["#24163a", "#5e35d1", "#f1d57d"], accent: "#8bd7ff" },
+  { id: "prodigy", name: "PRODIGY", title: "The Mathematical Prodigy", description: "The ultimate legacy avatar — cosmic, luminous and unmistakably legendary.", requiredLevel: 7, icon: "👑", palette: ["#20163d", "#6737d2", "#ffd963"], accent: "#7ce7ff" },
+];
 const ds = t => new Date(t).toISOString().slice(0, 10); // UTC calendar date
 
 const dflt = () => ({
   progression: { totalXP: 0, currentLevel: cfg.levels[0].id, unlockedLevels: [cfg.levels[0].id] },
+  avatar: { selected: "noob", unlocked: ["noob"] },
   statistics: {
     overall: {
       gamesPlayed: 0, gamesWon: 0, gamesAbandoned: 0, correctAnswers: 0, incorrectAnswers: 0, perfectGames: 0, perfectWins: 0,
@@ -83,6 +93,20 @@ function syncLevels(p) {
   p.progression.currentLevel = info.id;
   for (let i = 0; i < info.index; i++) if (!p.progression.unlockedLevels.includes(cfg.levels[i].id)) p.progression.unlockedLevels.push(cfg.levels[i].id);
   return info;
+}
+
+function syncAvatarUnlocks(p) {
+  p.avatar = p.avatar || { selected: "noob", unlocked: ["noob"] };
+  const currentLevel = levelInfo(p.progression.totalXP).index;
+  const unlocked = new Set(p.avatar.unlocked && p.avatar.unlocked.length ? p.avatar.unlocked : ["noob"]);
+  for (const avatar of AVATAR_COLLECTION) if (avatar.requiredLevel <= currentLevel) unlocked.add(avatar.id);
+  p.avatar.unlocked = [...unlocked].sort((a, b) => {
+    const ai = AVATAR_COLLECTION.findIndex(v => v.id === a);
+    const bi = AVATAR_COLLECTION.findIndex(v => v.id === b);
+    return ai - bi;
+  });
+  if (!p.avatar.selected || !unlocked.has(p.avatar.selected)) p.avatar.selected = "noob";
+  return p.avatar;
 }
 
 // Unlock every tier whose milestone has been reached (several at once is fine). Rewards are paid once per tier.
@@ -187,8 +211,18 @@ function publicProfile(p) {
   const o = O(p), s = SP(p), m = MPS(p), unlocked = p.achievements.unlocked, ach = {};
   for (const d of cfg.achievements) ach[d.id] = { tier: (unlocked[d.id] || { tier: 0 }).tier, value: STAT[d.stat](p) };
   const info = syncLevels(p);
+  const avatarState = syncAvatarUnlocks(p);
   return {
     id: p.id, name: p.name, info, unlockedLevels: p.progression.unlockedLevels, createdAt: p.createdAt,
+    avatar: {
+      selected: avatarState.selected,
+      unlocked: avatarState.unlocked,
+      collection: AVATAR_COLLECTION.map(a => ({
+        ...a,
+        unlocked: avatarState.unlocked.includes(a.id),
+        selected: avatarState.selected === a.id,
+      })),
+    },
     stats: {
       overall: { gamesPlayed: o.gamesPlayed, gamesWon: o.gamesWon, gamesAbandoned: o.gamesAbandoned, correct: o.correctAnswers, incorrect: o.incorrectAnswers, perfectGames: o.perfectGames, bestWinStreak: o.bestConsecutiveWins, highestScore: o.highestScore, highestDifficulty: o.highestDifficulty, daysPlayed: o.playDays.length, mpWinRate: rate(m.wins, m.games), byDifficulty: o.byDifficulty },
       solo: { ...s },
@@ -219,4 +253,4 @@ function clientConfig() {
   };
 }
 
-module.exports = { SCHEMA, newPlayer, migrate, levelInfo, awardGame, abandon, claimDaily, checkAchievements, publicProfile, leaderboard, clientConfig, STAT, descFor, syncLevels, ds };
+module.exports = { SCHEMA, AVATAR_COLLECTION, newPlayer, migrate, levelInfo, awardGame, abandon, claimDaily, checkAchievements, publicProfile, leaderboard, clientConfig, STAT, descFor, syncLevels, syncAvatarUnlocks, ds };
